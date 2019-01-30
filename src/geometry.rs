@@ -1,7 +1,7 @@
-use std::ops::{Add, Mul, Sub};
+use std::ops::{Add, Mul, Neg, Sub};
 
 #[derive(Debug, Default, Clone, Copy)]
-pub struct Vec3f([f32; 3]);
+pub struct Vec3f(pub [f32; 3]);
 
 impl Add for Vec3f {
     type Output = Self;
@@ -12,6 +12,14 @@ impl Add for Vec3f {
             self.0[1] + other.0[1],
             self.0[2] + other.0[2],
         ])
+    }
+}
+
+impl Neg for Vec3f {
+    type Output = Self;
+
+    fn neg(self) -> Self {
+        self * -1f32
     }
 }
 
@@ -60,5 +68,9 @@ impl Vec3f {
 
     pub fn normalize(&self) -> Self {
         *self * (1f32 / self.norm())
+    }
+
+    pub fn reflect(self, p: Self) -> Self {
+        self - p * 2f32 * (self * p)
     }
 }

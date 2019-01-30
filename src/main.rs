@@ -26,13 +26,17 @@ impl Light {
 
 #[derive(Debug, Default, Clone, Copy)]
 struct Material {
+    albedo: Vec3f,
     diffuse_color: Vec3f,
+    specular_exponent: f32,
 }
 
 impl Material {
-    fn new(color: Vec3f) -> Self {
+    fn new(albedo: Vec3f, color: Vec3f, spec: f32) -> Self {
         Self {
+            albedo,
             diffuse_color: color,
+            specular_exponent: spec,
         }
     }
 }
@@ -119,7 +123,7 @@ impl Image {
         self.framebuffer.len() / self.width
     }
 
-    fn scene_intersect(&self, orig: Vec3f, direction: Vec3f) -> Option<(Vec3f, Vec3f, Vec3f)> {
+    fn scene_intersect(&self, orig: Vec3f, direction: Vec3f) -> Option<(Vec3f, Vec3f, Material)> {
         let mut spheres_dist = std::f32::MAX;
         let mut hit = Vec3f::default();
         let mut n = Vec3f::default();
@@ -134,7 +138,7 @@ impl Image {
             }
         }
         if spheres_dist < 1000f32 {
-            Some((hit, n, material.diffuse_color))
+            Some((hit, n, material))
         } else {
             None
         }
@@ -142,12 +146,18 @@ impl Image {
 
     fn cast_ray(&self, orig: Vec3f, direction: Vec3f) -> Vec3f {
         let mut diffuse_light_intensity = 0f32;
-        if let Some((point, n, diffuse_color)) = self.scene_intersect(orig, direction) {
+        let mut specular_light_intensity = 0f32;
+        if let Some((point, n, material)) = self.scene_intersect(orig, direction) {
             for light in &self.lights {
                 let light_dir = (light.position - point).normalize();
                 diffuse_light_intensity += light.intensity * 0f32.max(light_dir * n);
+                specular_light_intensity += 0f32
+                    .max(-(-light_dir).reflect(n) * direction)
+                    .powf(material.specular_exponent)
+                    * light.intensity;
             }
-            diffuse_color * diffuse_light_intensity
+            material.diffuse_color * diffuse_light_intensity * material.albedo.0[0]
+                + Vec3f::new(1.0, 1.0, 1.0) * specular_light_intensity * material.albedo.0[1]
         } else {
             Vec3f::new(0.2, 0.7, 0.8)
         }
@@ -176,8 +186,14 @@ impl Image {
         writer.write_image_data(
             &self
                 .framebuffer
-                .iter()
-                .flat_map(|p| p.as_bytes())
+                .iter_mut()
+                .flat_map(|p| {
+                    let max = p.0[0].max(p.0[1].max(p.0[2]));
+                    if max > 1f32 {
+                        *p = *p * (1f32 / max);
+                    }
+                    p.as_bytes()
+                })
                 .collect::<Vec<_>>(),
         )?;
         Ok(())
@@ -194,12 +210,14 @@ impl Image {
 
 fn main() {
     let mut image = Image::new(1024, 768);
-    let ivory = Material::new(Vec3f::new(0.4, 0.4, 0.3));
-    let red_rubber = Material::new(Vec3f::new(0.3, 0.1, 0.1));
+    let ivory = Material::new(Vec3f::new(0.6, 0.3, 0.0), Vec3f::new(0.4, 0.4, 0.3), 50.0);
+    let red_rubber = Material::new(Vec3f::new(0.9, 0.1, 0.0), Vec3f::new(0.3, 0.1, 0.1), 10.0);
     image.add_sphere(Sphere::new(Vec3f::new(-3.0, 0.0, -16.0), 2.0, ivory));
     image.add_sphere(Sphere::new(Vec3f::new(-1.0, -1.5, -12.0), 2.0, red_rubber));
     image.add_sphere(Sphere::new(Vec3f::new(1.5, -0.5, -18.0), 3.0, red_rubber));
     image.add_sphere(Sphere::new(Vec3f::new(7.0, 5.0, -18.0), 4.0, ivory));
     image.add_light(Light::new(Vec3f::new(-20.0, 20.0, 20.0), 1.5));
+    image.add_light(Light::new(Vec3f::new(30.0, 50.0, -25.0), 1.8));
+    image.add_light(Light::new(Vec3f::new(30.0, 20.0, 30.0), 1.7));
     image.render().expect("render");
 }
