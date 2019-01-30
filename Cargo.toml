@@ -5,6 +5,7 @@ authors = ["Sergey Veselkov <veselkovsd@yandex.ru>"]
 edition = "2018"
 
 [dependencies]
+png = "0.14.0"
 
 [profile.release]
 opt-level = 2
