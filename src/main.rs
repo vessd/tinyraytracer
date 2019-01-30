@@ -9,6 +9,21 @@ mod geometry;
 
 type Result<T> = std::result::Result<T, Box<std::error::Error>>;
 
+#[derive(Debug, Clone, Copy)]
+struct Light {
+    position: Vec3f,
+    intensity: f32,
+}
+
+impl Light {
+    fn new(position: Vec3f, intensity: f32) -> Self {
+        Self {
+            position,
+            intensity,
+        }
+    }
+}
+
 #[derive(Debug, Default, Clone, Copy)]
 struct Material {
     diffuse_color: Vec3f,
@@ -64,6 +79,7 @@ struct Image {
     width: usize,
     fov: f32,
     spheres: Vec<Sphere>,
+    lights: Vec<Light>,
 }
 
 impl Index<usize> for Image {
@@ -91,6 +107,7 @@ impl Image {
             width,
             fov: FRAC_PI_2,
             spheres: Vec::new(),
+            lights: Vec::new(),
         }
     }
 
@@ -102,27 +119,38 @@ impl Image {
         self.framebuffer.len() / self.width
     }
 
-    fn scene_intersect(&self, orig: Vec3f, direction: Vec3f) -> Option<Vec3f> {
+    fn scene_intersect(&self, orig: Vec3f, direction: Vec3f) -> Option<(Vec3f, Vec3f, Vec3f)> {
         let mut spheres_dist = std::f32::MAX;
+        let mut hit = Vec3f::default();
+        let mut n = Vec3f::default();
         let mut material = Material::default();
         let mut dist_i = 0f32;
-        for i in 0..self.spheres.len() {
-            if self.spheres[i].ray_intersect(orig, direction, &mut dist_i) && dist_i < spheres_dist
-            {
+        for sphere in &self.spheres {
+            if sphere.ray_intersect(orig, direction, &mut dist_i) && dist_i < spheres_dist {
                 spheres_dist = dist_i;
-                material = self.spheres[i].material;
+                hit = orig + direction * dist_i;
+                n = (hit - sphere.center).normalize();
+                material = sphere.material;
             }
         }
         if spheres_dist < 1000f32 {
-            Some(material.diffuse_color)
+            Some((hit, n, material.diffuse_color))
         } else {
             None
         }
     }
 
     fn cast_ray(&self, orig: Vec3f, direction: Vec3f) -> Vec3f {
-        self.scene_intersect(orig, direction)
-            .unwrap_or(Vec3f::new(0.2, 0.7, 0.8))
+        let mut diffuse_light_intensity = 0f32;
+        if let Some((point, n, diffuse_color)) = self.scene_intersect(orig, direction) {
+            for light in &self.lights {
+                let light_dir = (light.position - point).normalize();
+                diffuse_light_intensity += light.intensity * 0f32.max(light_dir * n);
+            }
+            diffuse_color * diffuse_light_intensity
+        } else {
+            Vec3f::new(0.2, 0.7, 0.8)
+        }
     }
 
     fn render(&mut self) -> Result<()> {
@@ -158,17 +186,20 @@ impl Image {
     fn add_sphere(&mut self, sphere: Sphere) {
         self.spheres.push(sphere);
     }
+
+    fn add_light(&mut self, light: Light) {
+        self.lights.push(light);
+    }
 }
 
 fn main() {
-    let width = 1024;
-    let height = 768;
-    let mut image = Image::new(width, height);
+    let mut image = Image::new(1024, 768);
     let ivory = Material::new(Vec3f::new(0.4, 0.4, 0.3));
     let red_rubber = Material::new(Vec3f::new(0.3, 0.1, 0.1));
     image.add_sphere(Sphere::new(Vec3f::new(-3.0, 0.0, -16.0), 2.0, ivory));
     image.add_sphere(Sphere::new(Vec3f::new(-1.0, -1.5, -12.0), 2.0, red_rubber));
     image.add_sphere(Sphere::new(Vec3f::new(1.5, -0.5, -18.0), 3.0, red_rubber));
     image.add_sphere(Sphere::new(Vec3f::new(7.0, 5.0, -18.0), 4.0, ivory));
+    image.add_light(Light::new(Vec3f::new(-20.0, 20.0, 20.0), 1.5));
     image.render().expect("render");
 }
