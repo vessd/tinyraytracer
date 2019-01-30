@@ -1,7 +1,19 @@
-use std::ops::{Mul, Sub};
+use std::ops::{Add, Mul, Sub};
 
 #[derive(Debug, Default, Clone, Copy)]
 pub struct Vec3f([f32; 3]);
+
+impl Add for Vec3f {
+    type Output = Self;
+
+    fn add(self, other: Self) -> Self {
+        Self([
+            self.0[0] + other.0[0],
+            self.0[1] + other.0[1],
+            self.0[2] + other.0[2],
+        ])
+    }
+}
 
 impl Sub for Vec3f {
     type Output = Self;
