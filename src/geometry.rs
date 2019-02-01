@@ -62,12 +62,12 @@ impl Vec3f {
             .map(|b| (b.min(1f32).max(0f32) * 255f32) as u8)
     }
 
-    fn norm(&self) -> f32 {
+    pub fn norm(self) -> f32 {
         (self.0[0] * self.0[0] + self.0[1] * self.0[1] + self.0[2] * self.0[2]).sqrt()
     }
 
-    pub fn normalize(&self) -> Self {
-        *self * (1f32 / self.norm())
+    pub fn normalize(self) -> Self {
+        self * (1f32 / self.norm())
     }
 
     pub fn reflect(self, p: Self) -> Self {

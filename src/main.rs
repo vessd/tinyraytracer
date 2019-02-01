@@ -150,6 +150,17 @@ impl Image {
         if let Some((point, n, material)) = self.scene_intersect(orig, direction) {
             for light in &self.lights {
                 let light_dir = (light.position - point).normalize();
+                let light_distance = (light.position - point).norm();
+                let shadow_orig = if light_dir * n < 0f32 {
+                    point - n * 1e-3
+                } else {
+                    point + n * 1e-3
+                };
+                if let Some((shadow_pt, _, _)) = self.scene_intersect(shadow_orig, light_dir) {
+                    if (shadow_pt - shadow_orig).norm() < light_distance {
+                        continue;
+                    }
+                }
                 diffuse_light_intensity += light.intensity * 0f32.max(light_dir * n);
                 specular_light_intensity += 0f32
                     .max(-(-light_dir).reflect(n) * direction)
@@ -159,7 +170,7 @@ impl Image {
             material.diffuse_color * diffuse_light_intensity * material.albedo.0[0]
                 + Vec3f::new(1.0, 1.0, 1.0) * specular_light_intensity * material.albedo.0[1]
         } else {
-            Vec3f::new(0.2, 0.7, 0.8)
+            Vec3f::new(0.2, 0.7, 0.8) // background color
         }
     }
 
