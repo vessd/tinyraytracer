@@ -24,18 +24,31 @@ impl Light {
     }
 }
 
-#[derive(Debug, Default, Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 struct Material {
-    albedo: Vec3f,
+    albedo: [f32; 4],
     diffuse_color: Vec3f,
+    refractive_index: f32,
     specular_exponent: f32,
 }
 
+impl Default for Material {
+    fn default() -> Self {
+        Self {
+            albedo: [1f32, 0f32, 0f32, 0f32],
+            diffuse_color: Vec3f::default(),
+            refractive_index: 1f32,
+            specular_exponent: 0f32,
+        }
+    }
+}
+
 impl Material {
-    fn new(albedo: Vec3f, color: Vec3f, spec: f32) -> Self {
+    fn new(r: f32, albedo: [f32; 4], color: Vec3f, spec: f32) -> Self {
         Self {
             albedo,
             diffuse_color: color,
+            refractive_index: r,
             specular_exponent: spec,
         }
     }
@@ -147,7 +160,13 @@ impl Image {
     fn cast_ray(&self, orig: Vec3f, dir: Vec3f, depth: Option<usize>) -> Vec3f {
         if let Some((point, n, material)) = depth.and_then(|_| self.scene_intersect(orig, dir)) {
             let reflect_dir = dir.reflect(n).normalize();
+            let refract_dir = dir.refract(n, material.refractive_index);
             let reflect_orig = if reflect_dir * n < 0f32 {
+                point - n * 1e-3
+            } else {
+                point + n * 1e-3
+            };
+            let refract_orig = if refract_dir * n < 0f32 {
                 point - n * 1e-3
             } else {
                 point + n * 1e-3
@@ -155,6 +174,11 @@ impl Image {
             let reflect_color = self.cast_ray(
                 reflect_orig,
                 reflect_dir,
+                depth.map(|d| d + 1).filter(|d| *d <= 4),
+            );
+            let refract_color = self.cast_ray(
+                refract_orig,
+                refract_dir,
                 depth.map(|d| d + 1).filter(|d| *d <= 4),
             );
             let mut diffuse_light_intensity = 0f32;
@@ -178,9 +202,10 @@ impl Image {
                     .powf(material.specular_exponent)
                     * light.intensity;
             }
-            material.diffuse_color * diffuse_light_intensity * material.albedo.0[0]
-                + Vec3f::new(1.0, 1.0, 1.0) * specular_light_intensity * material.albedo.0[1]
-                + reflect_color * material.albedo.0[2]
+            material.diffuse_color * diffuse_light_intensity * material.albedo[0]
+                + Vec3f::new(1.0, 1.0, 1.0) * specular_light_intensity * material.albedo[1]
+                + reflect_color * material.albedo[2]
+                + refract_color * material.albedo[3]
         } else {
             Vec3f::new(0.2, 0.7, 0.8) // background color
         }
@@ -234,20 +259,25 @@ impl Image {
 
 fn main() {
     let mut image = Image::new(1024, 768);
-    let ivory = Material::new(Vec3f::new(0.6, 0.3, 0.1), Vec3f::new(0.4, 0.4, 0.3), 50.0);
-    let red_rubber = Material::new(Vec3f::new(0.9, 0.1, 0.0), Vec3f::new(0.3, 0.1, 0.1), 10.0);
+
+    let ivory = Material::new(1.0, [0.6, 0.3, 0.1, 0.0], Vec3f::new(0.4, 0.4, 0.3), 50.0);
+    let glass = Material::new(1.5, [0.0, 0.5, 0.1, 0.8], Vec3f::new(0.6, 0.7, 0.8), 125.0);
+    let red_rubber = Material::new(1.0, [0.9, 0.1, 0.0, 0.0], Vec3f::new(0.3, 0.1, 0.1), 10.0);
     let mirror = Material::new(
-        Vec3f::new(0.0, 10.0, 0.8),
+        1.0,
+        [0.0, 10.0, 0.8, 0.0],
         Vec3f::new(1.0, 1.0, 1.0),
         1425.0,
     );
 
     image.add_sphere(Sphere::new(Vec3f::new(-3.0, 0.0, -16.0), 2.0, ivory));
-    image.add_sphere(Sphere::new(Vec3f::new(-1.0, -1.5, -12.0), 2.0, mirror));
+    image.add_sphere(Sphere::new(Vec3f::new(-1.0, -1.5, -12.0), 2.0, glass));
     image.add_sphere(Sphere::new(Vec3f::new(1.5, -0.5, -18.0), 3.0, red_rubber));
     image.add_sphere(Sphere::new(Vec3f::new(7.0, 5.0, -18.0), 4.0, mirror));
+
     image.add_light(Light::new(Vec3f::new(-20.0, 20.0, 20.0), 1.5));
     image.add_light(Light::new(Vec3f::new(30.0, 50.0, -25.0), 1.8));
     image.add_light(Light::new(Vec3f::new(30.0, 20.0, 30.0), 1.7));
+
     image.render().expect("render");
 }

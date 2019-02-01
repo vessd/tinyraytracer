@@ -73,4 +73,23 @@ impl Vec3f {
     pub fn reflect(self, p: Self) -> Self {
         self - p * 2f32 * (self * p)
     }
+
+    pub fn refract(self, p: Self, mut etat: f32) -> Self {
+        let mut cosi = -(self * p).min(1f32).max(-1f32);
+        let mut etai = 1f32;
+        let n = if cosi < 0f32 {
+            cosi = -cosi;
+            std::mem::swap(&mut etai, &mut etat);
+            -p
+        } else {
+            p
+        };
+        let eta = etai / etat;
+        let k = 1f32 - eta * eta * (1f32 - cosi * cosi);
+        if k < 0f32 {
+            Vec3f::new(0.0, 0.0, 0.0)
+        } else {
+            self * eta + n * (eta * cosi - k.sqrt())
+        }
+    }
 }
