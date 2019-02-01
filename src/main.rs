@@ -150,7 +150,31 @@ impl Image {
                 material = sphere.material;
             }
         }
-        if spheres_dist < 1000f32 {
+
+        let mut checkerboard_dist = std::f32::MAX;
+        if direction.0[1].abs() > 1e-3 {
+            let d = -(orig.0[1] + 4f32) / direction.0[1]; // the checkerboard plane has equation y = -4
+            let pt = orig + direction * d;
+            if d > 0f32
+                && pt.0[0].abs() < 10f32
+                && pt.0[2] < -10f32
+                && pt.0[2] > -30f32
+                && d < spheres_dist
+            {
+                checkerboard_dist = d;
+                hit = pt;
+                n = Vec3f::new(0.0, 1.0, 0.0);
+                material.diffuse_color =
+                    if ((0.5 * hit.0[0] + 1000f32) as usize + (0.5 * hit.0[2]) as usize) & 1 != 0 {
+                        Vec3f::new(1.0, 1.0, 1.0)
+                    } else {
+                        Vec3f::new(1.0, 0.7, 0.3)
+                    };
+                material.diffuse_color = material.diffuse_color * 0.3;
+            }
+        }
+
+        if spheres_dist.min(checkerboard_dist) < 1000f32 {
             Some((hit, n, material))
         } else {
             None
